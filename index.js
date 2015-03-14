@@ -64,7 +64,7 @@
 			'ng_typecheck_string': 2,
 			'ng_window_service': 2,
 			'ng_controller_as_route': 2,
-			'ng_controller_as': 2
+			'ng_controller_as': [2]
 		}
 		};
 })();

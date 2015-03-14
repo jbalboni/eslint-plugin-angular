@@ -8,20 +8,20 @@ module.exports = function(context) {
         context.report(stmt, "You should not set properties on $scope in controllers. Use controllerAs syntax and add data to 'this'");
     }
 
-    function checkStatementsForScope (stmt) {
+    function checkStatementsForScopeUsage (stmt) {
         /* blocks */
         if (stmt.type === 'BlockStatement') {
-            stmt.body.forEach(checkStatementsForScope);
+            stmt.body.forEach(checkStatementsForScopeUsage);
         }
         if (stmt.type === 'WhileStatement' || stmt.type === 'FunctionDeclaration') {
-            checkStatementsForScope(stmt.body);
+            checkStatementsForScopeUsage(stmt.body);
         }
         //covers if/else statements
         if (stmt.consequent) {
-            checkStatementsForScope(stmt.consequent);
+            checkStatementsForScopeUsage(stmt.consequent);
         }
-        if (stmt.consequent || stmt.alternate) {
-            checkStatementsForScope(stmt.alternate);
+        if (stmt.alternate) {
+            checkStatementsForScopeUsage(stmt.alternate);
         }
 
         /* functions */
@@ -29,7 +29,7 @@ module.exports = function(context) {
         if (stmt.type === 'VariableDeclaration') {
             stmt.declarations.forEach(function (dec) {
                 if (dec.init.type === 'FunctionExpression') {
-                    dec.init.body.body.forEach(checkStatementsForScope);
+                    dec.init.body.body.forEach(checkStatementsForScopeUsage);
                 }
             });
         }
@@ -51,21 +51,66 @@ module.exports = function(context) {
     }
 
     function checkController (func) {
-        func.body.body.forEach(checkStatementsForScope);
+        if (func) {
+            checkStatementsForScopeUsage(func.body);
+        }
     }
 
-    return {
-        'CallExpression:exit': function(node) {
-            var callee = node.callee;
+    function findIdentiferInScope(identifier) {
+        var identifierNode = null;
+        context.getScope().variables.forEach(function (variable) {
+            if (variable.name === identifier.name) {
+                identifierNode = variable.defs[0].node;
+            }
+        });
+        return identifierNode;
+    }
 
-            if(callee.type === 'MemberExpression' && callee.property.name === 'controller') {
-                context.getScope().variables.forEach(function (variable) {
-                    if (variable.name === node.arguments[1].name) {
-                        checkController(variable.defs[0].node);
+    var exports = {};
+
+
+    //Typical usage: find controller function from Angular controller() call
+    if (!context.options[0]) {
+        exports['CallExpression:exit'] = function(node) {
+            var controllerArg = null;
+
+            if(utils.isAngularControllerDeclaration(node)) {
+                controllerArg = node.arguments[1];
+
+                //Three ways of creating a controller function: function expression,
+                //variable name that references a function, and an array with a function
+                //as the last item
+                if (utils.isFunctionType(controllerArg)) {
+                    checkController(controllerArg);
+                } else if (utils.isArrayType(controllerArg)) {
+                    controllerArg = controllerArg.elements[controllerArg.elements.length - 1];
+                    if (utils.isIdentifierType(controllerArg)) {
+                        checkController(findIdentiferInScope(controllerArg));
+                    } else {
+                        checkController(controllerArg);
                     }
-                });
+                }
+                else if (utils.isIdentifierType(controllerArg)) {
+                    checkController(findIdentiferInScope(controllerArg));
+                }
+
             }
         }
-    };
+    //This option finds controller functions based on function name, rather than Angular boilerplate
+    //Useful for Browserify/CommonJS Angular code
+    } else {
+        var controllerNameMatcher = context.options[0];
+        if (utils.isStringRegexp(controllerNameMatcher)) {
+            controllerNameMatcher = new RegExp(controllerNameMatcher);
+        }
+
+        exports['FunctionExpression'] = function (node) {
+            if (node.id && controllerNameMatcher.test(node.id.name)) {
+                checkController(node);
+            }
+        };
+    }
+
+    return exports;
 
 };
