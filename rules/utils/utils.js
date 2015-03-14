@@ -55,7 +55,7 @@
 		},
 
 		isAngularComponent: function(node){
-			return node.arguments.length === 2 && this.isLiteralType(node.arguments[0]) && (this.isFunctionType(node.arguments[1]) || this.isArrayType(node.arguments[1]));
+			return node.arguments.length === 2 && this.isLiteralType(node.arguments[0]) && (this.isIdentifierType(node.arguments[1]) || this.isFunctionType(node.arguments[1]) || this.isArrayType(node.arguments[1]));
 		},
 
 		isAngularControllerDeclaration: function(node){
