@@ -97,6 +97,9 @@
 				return callObject.name === '$stateProvider';
 			}
 			return false;
-		}
+		},
+
+		scopeProperties: ['$id', '$parent', '$root', '$destroy', '$broadcast', '$emit', '$on', '$applyAsync', '$apply',
+			'$evalAsync', '$eval', '$digest', '$watchCollection', '$watchGroup', '$watch', '$new']
 	};
 })();
