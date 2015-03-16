@@ -3,61 +3,32 @@ module.exports = function(context) {
     'use strict';
 
     var utils = require('./utils/utils');
-
-    /* We're going to build a tree of functions with the bad uses of $scope in each.
-    * Then we can recursively collect those bad uses and check to see if they're used inside
-    * a controller function.
-    * */
-
-    var root = {
-        parent: null,
-        func: {},
-        children: [],
-        badStatements: []
-    };
-    var currentNode = root;
+    var badStatements = [];
     var controllerFunctions = [];
 
     //If your Angular code is written so that controller functions are in
     //separate files from your .controller() calls, you can specify a regex for your controller function names
     var controllerNameMatcher = context.options[0];
     if (controllerNameMatcher && utils.isStringRegexp(controllerNameMatcher)) {
-        controllerNameMatcher = new RegExp(controllerNameMatcher);
+        controllerNameMatcher = utils.convertStringToRegex(controllerNameMatcher);
     }
 
-    //functions are nodes in our tree, so create a new node when we hit one
-    function startFunction (func) {
-        var node = {
-            parent: currentNode,
-            func: func,
-            children: [],
-            badStatements: []
-        };
-        currentNode.children.push(node);
-        currentNode = node;
+    //check node against known controller functions or pattern if specified
+    function isControllerFunction(node) {
+        return controllerFunctions.indexOf(node) >= 0 ||
+            (controllerNameMatcher && (node.type === 'FunctionExpression' || node.type === 'FunctionDeclaration') &&
+            node.id && controllerNameMatcher.test(node.id.name))
     }
 
-    //go back up the tree when we're done with a function
-    function endFunction (func) {
-        currentNode = currentNode.parent;
-    }
-
-    //at the end, traverse the tree and find any bad $scope uses in each function
-    function reportBadUses(node) {
-        var badStatements = node.badStatements;
-        if (node.children.length > 0) {
-            node.children.forEach(function (childNode) {
-                badStatements = badStatements.concat(reportBadUses(childNode));
-            });
-        }
-        if ((controllerNameMatcher && node.func.id && controllerNameMatcher.test(node.func.id.name)) ||
-            controllerFunctions.indexOf(node.func) >= 0) {
-            badStatements.forEach(function (stmt) {
-                context.report(stmt, "You should not set properties on $scope in controllers. Use controllerAs syntax and add data to 'this'");
-            });
-            return [];
-        }
-        return badStatements;
+    //for each of the bad uses, find any parent nodes that are controller functions
+    function reportBadUses() {
+        badStatements.forEach(function (item) {
+            item.parents.forEach(function (parent) {
+                if (isControllerFunction(parent)) {
+                    context.report(item.stmt, "You should not set properties on $scope in controllers. Use controllerAs syntax and add data to 'this'");
+                }
+            })
+        });
     }
 
     function findIdentiferInScope(identifier) {
@@ -107,22 +78,16 @@ module.exports = function(context) {
                 stmt.expression.left.object &&
                 stmt.expression.left.object.name === '$scope' &&
                 utils.scopeProperties.indexOf(stmt.expression.left.property.name) < 0) {
-                currentNode.badStatements.push(stmt);
+                badStatements.push({ parents: context.getAncestors(), stmt: stmt });
             } else if (stmt.expression.type === 'CallExpression' &&
                 stmt.expression.callee.object &&
                 stmt.expression.callee.object.name === '$scope' &&
                 utils.scopeProperties.indexOf(stmt.expression.callee.property.name) < 0) {
-                currentNode.badStatements.push(stmt);
+                badStatements.push({ parents: context.getAncestors(), stmt: stmt });
             }
         },
-        //we've built our function tree and recorded our controllers, so now we can report
         'Program:exit': function () {
-            reportBadUses(root);
-        },
-        //tree building hooks
-        'FunctionExpression': startFunction,
-        'FunctionDeclaration': startFunction,
-        'FunctionExpression:exit': endFunction,
-        'FunctionDeclaration:exit': endFunction
+            reportBadUses();
+        }
     }
 };

@@ -12,8 +12,8 @@ var eslint = require('../node_modules/eslint/lib/eslint'),
 var eslintTester = new ESLintTester(eslint);
 eslintTester.addRuleTest('rules/ng_controller_as', {
     valid: [
-        'angular.controller("Test", function () { $scope.$watch() } )',
-        'angular.controller("Test", function () { doSomething($scope) } )'
+        'angular.module("test").controller("Test", function () { $scope.$watch() } )',
+        'angular.module("test").controller("Test", function () { doSomething($scope) } )'
     ],
     invalid: [
         { code: 'angular.module("test").controller("Test", function () { $scope.name = "test" } );',
@@ -35,6 +35,9 @@ eslintTester.addRuleTest('rules/ng_controller_as', {
             errors: [{ message: 'You should not set properties on $scope in controllers. Use controllerAs syntax and add data to \'this\''}] },
         { code: 'module.exports = function MyController () { $scope.name() }',
             args: [2, /MyController/],
+            errors: [{ message: 'You should not set properties on $scope in controllers. Use controllerAs syntax and add data to \'this\''}] },
+        { code: 'module.exports = function MyController () { $scope.name() }',
+            args: [2, '/MyController/'],
             errors: [{ message: 'You should not set properties on $scope in controllers. Use controllerAs syntax and add data to \'this\''}] }
     ]
 });

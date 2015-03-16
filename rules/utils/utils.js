@@ -22,6 +22,13 @@
 			return new RegExp(prefix + '.*');
 		},
 
+		convertStringToRegex: function (string) {
+			if(string[0] === '/' && string[string.length-1] === '/'){
+				string = string.substring(1, string.length-2);
+			}
+			return new RegExp(string);
+		},
+
 		isTypeOfStatement: function(node){
 			return node.type === 'Identifier' || (node.type === 'UnaryExpression' && node.operator === 'typeof');
 		},
