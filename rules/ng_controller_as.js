@@ -33,45 +33,11 @@ module.exports = function(context) {
         }
     }
 
-    function findIdentiferInScope(identifier) {
-        var identifierNode = null;
-        context.getScope().variables.forEach(function (variable) {
-            if (variable.name === identifier.name) {
-                identifierNode = variable.defs[0].node
-                if (identifierNode.type === 'VariableDeclarator') {
-                    identifierNode = identifierNode.init;
-                }
-            }
-        });
-        return identifierNode;
-    }
-
     return {
         //Looking for .controller() calls here and getting the associated controller function
         'CallExpression:exit': function(node) {
-            var controllerArg = null;
-
             if(utils.isAngularControllerDeclaration(node)) {
-                controllerArg = node.arguments[1];
-
-                //Three ways of creating a controller function: function expression,
-                //variable name that references a function, and an array with a function
-                //as the last item
-                if (utils.isFunctionType(controllerArg)) {
-                    controllerFunctions.push(controllerArg);
-                } else if (utils.isArrayType(controllerArg)) {
-                    controllerArg = controllerArg.elements[controllerArg.elements.length - 1];
-
-                    if (utils.isIdentifierType(controllerArg)) {
-                        controllerFunctions.push(findIdentiferInScope(controllerArg));
-                    } else {
-                        controllerFunctions.push(controllerArg);
-                    }
-                }
-                else if (utils.isIdentifierType(controllerArg)) {
-                    controllerFunctions.push(findIdentiferInScope(controllerArg));
-                }
-
+                controllerFunctions.push(utils.getControllerDefinition(context, node));
             }
         },
         //statements are checked here for bad uses of $scope
